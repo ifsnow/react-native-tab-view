@@ -8,6 +8,7 @@ import {
   StyleSheet,
   View,
   Platform,
+  I18nManager,
 } from 'react-native';
 import { PagerRendererPropType } from './TabViewPropTypes';
 import type {
@@ -80,15 +81,17 @@ export default class TabViewPagerPan<T: *> extends React.Component<Props<T>> {
   };
 
   componentWillMount() {
-    this._panResponder = PanResponder.create({
-      onMoveShouldSetPanResponder: this._canMoveScreen,
-      onMoveShouldSetPanResponderCapture: this._canMoveScreen,
-      onPanResponderGrant: this._startGesture,
-      onPanResponderMove: this._respondToGesture,
-      onPanResponderTerminate: this._finishGesture,
-      onPanResponderRelease: this._finishGesture,
-      onPanResponderTerminationRequest: () => true,
-    });
+    if (this.props.swipeEnabled) {
+      this._panResponder = PanResponder.create({
+        onMoveShouldSetPanResponder: this._canMoveScreen,
+        onMoveShouldSetPanResponderCapture: this._canMoveScreen,
+        onPanResponderGrant: this._startGesture,
+        onPanResponderMove: this._respondToGesture,
+        onPanResponderTerminate: this._finishGesture,
+        onPanResponderRelease: this._finishGesture,
+        onPanResponderTerminationRequest: () => true,
+      });
+    }
   }
 
   componentDidUpdate(prevProps: Props<T>) {
@@ -223,16 +226,32 @@ export default class TabViewPagerPan<T: *> extends React.Component<Props<T>> {
   _panResponder: any;
   _pendingIndex: ?number;
 
-  render() {
-    const { panX, offsetX, navigationState, layout, children } = this.props;
+  _getTranslateX() {
+    const { panX, offsetX, navigationState, layout } = this.props;
     const { width } = layout;
     const { routes } = navigationState;
     const maxTranslate = width * (routes.length - 1);
-    const translateX = Animated.add(panX, offsetX).interpolate({
+
+    if (I18nManager.isRTL) {
+      return Animated.multiply(Animated.add(panX, offsetX), -1).interpolate({
+        inputRange: [0, maxTranslate],
+        outputRange: [0, maxTranslate],
+        extrapolate: 'clamp',
+      });
+    }
+    
+    return Animated.add(panX, offsetX).interpolate({
       inputRange: [-maxTranslate, 0],
       outputRange: [-maxTranslate, 0],
       extrapolate: 'clamp',
     });
+  }
+
+  render() {
+    const { navigationState, layout, children } = this.props;
+    const { width } = layout;
+    const { routes } = navigationState;
+    const translateX = this._getTranslateX();
 
     return (
       <Animated.View
@@ -245,7 +264,7 @@ export default class TabViewPagerPan<T: *> extends React.Component<Props<T>> {
               }
             : null,
         ]}
-        {...this._panResponder.panHandlers}
+        {...this._panResponder?.panHandlers}
       >
         {React.Children.map(children, (child, i) => (
           <View
